@@ -29,7 +29,12 @@ func parseRPN(expression string) float64 {
 			case "*":
 				c = a * b
 			case "/":
-				c = a / b
+				if b == 0 {
+					fmt.Println("Error: Division by 0!")
+					c = 0
+				} else {
+					c = a / b
+				}
 			case "^":
 				c = math.Pow(a, b)
 			default:
@@ -39,22 +44,32 @@ func parseRPN(expression string) float64 {
 		}
 	}
 	if len(stack) > 0 {
-		fmt.Printf("Result: %f\n", stack[len(stack)-1])
 		return stack[len(stack)-1]
 	}
-	fmt.Println("Result: 0")
 	return 0
 }
 
 func rpn(queue string, args ...interface{}) error {
 	fmt.Printf("%v\n", args)
-	if len(args) > 0 {
-		parseRPN(args[0].(string))
+	if len(args) > 1 {
+		conn, err := goworker.GetConn()
+		if err == nil {
+			conn.Do("SET", args[0].(string), parseRPN(args[1].(string)))
+		}
 	}
 	return nil
 }
 
 func init() {
+	settings := goworker.WorkerSettings{
+		URI:         "redis://localhost:6379/",
+		Connections: 4,
+		Queues:      []string{"myqueue"},
+		Concurrency: 2,
+		Namespace:   "resque:",
+		Interval:    5.0,
+	}
+	goworker.SetSettings(settings)
 	goworker.Register("RpnConverter", rpn)
 }
 
