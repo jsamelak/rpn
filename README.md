@@ -1,4 +1,7 @@
 # rpn
+System for evaluating Reverse Polish Notation expressions.
+Logs containing input, timings and results are saved into 'rblog.log' file.
+Results and timings are printed on stdout. 
 
 Usage:
 go run .\worker.go
