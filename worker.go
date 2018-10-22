@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
-	"github.com/benmanns/goworker"
+	"github.com/Scalingo/go-workers"
 )
 
-func parseRPN(expression string) float64 {
-	fmt.Printf("parseRPN: %s\n", expression)
+func parseRPN(expression string) string {
 	var stack []float64
 	for _, el := range strings.Split(expression, " ") {
 		num, err := strconv.ParseFloat(el, 64)
@@ -30,51 +28,42 @@ func parseRPN(expression string) float64 {
 				c = a * b
 			case "/":
 				if b == 0 {
-					fmt.Println("Error: Division by 0!")
-					c = 0
+					return "Error: Division by 0"
 				} else {
 					c = a / b
 				}
 			case "^":
 				c = math.Pow(a, b)
 			default:
-				fmt.Printf("Error: Unrecognized symbol '%s'\n", el)
+				return "Error: Unrecognized symbol " + el
 			}
 			stack = append(stack, c)
+		} else {
+			return "Error: Invalid RPN expression"
 		}
 	}
 	if len(stack) > 0 {
-		return stack[len(stack)-1]
+		return strconv.FormatFloat(stack[len(stack)-1], 'f', 3, 64)
 	}
-	return 0
+	return "Error: Unknown error"
 }
 
-func rpn(queue string, args ...interface{}) error {
-	fmt.Printf("%v\n", args)
-	if len(args) > 1 {
-		conn, err := goworker.GetConn()
-		if err == nil {
-			conn.Do("SET", args[0].(string), parseRPN(args[1].(string)))
-		}
-	}
-	return nil
-}
+func RpnWorker(msg *workers.Msg) {
+	args, _ := msg.Get("args").StringArray()
+	jid, _ := msg.Get("jid").String()
 
-func init() {
-	settings := goworker.WorkerSettings{
-		URI:         "redis://localhost:6379/",
-		Connections: 4,
-		Queues:      []string{"myqueue"},
-		Concurrency: 2,
-		Namespace:   "resque:",
-		Interval:    5.0,
+	if len(args) > 0 {
+		conn := workers.Config.Pool.Get()
+		result := parseRPN(args[0])
+		conn.Do("SET", jid, result)
+		conn.Flush()
 	}
-	goworker.SetSettings(settings)
-	goworker.Register("RpnConverter", rpn)
 }
 
 func main() {
-	if err := goworker.Work(); err != nil {
-		fmt.Println("Error:", err)
-	}
+	workers.Configure(map[string]string{
+		"process": "worker1", "server": "127.0.0.1:6379", "namespace": "goworkers",
+	})
+	workers.Process("myqueue", RpnWorker, 10)
+	workers.Run()
 }
