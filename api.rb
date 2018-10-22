@@ -19,13 +19,14 @@ Sidekiq::configure_client do |config|
     config.redis = {url: "redis://127.0.0.1:6379", namespace: "goworkers"}
 end
 
+timings = Hash.new
+
 post '/' do
     content_type :json
     rpn = params[:rpn]
-    logger.info(rpn)
     if rpn
         job_id = Sidekiq::Client.push "queue" => "myqueue", "class" => "RpnWorker", "args" => [rpn]
-        logger.info(job_id)
+        timings[job_id] = { "rpn" => rpn, "timestamp" => Time.now }
         {:jobID => job_id}.to_json
     else
         {:jobID => ''}.to_json
@@ -35,22 +36,27 @@ end
 get '/' do
     content_type :json
     jobID = params[:jobID]
-    logger.info(jobID)
     v = nil
+    time_taken = "0.000"
     if jobID
         time = 0
         loop do
             v = redis.get(jobID)
-            logger.info(v)
+            redis.del(jobID)
+            break if v != nil or time >= timeout
             sleep sleep_time
             time = time + sleep_time
-            break if v != nil or time >= timeout
         end
-        logger.info(v)
+        timing = timings[jobID]
+        if timing
+            time_taken = "%.3f" % (Time.now - timing["timestamp"])
+            logger.info("Input: '" + timing["rpn"] + "', Output: " + v + ", Time: " + time_taken + "s")
+            timings.delete(jobID)
+        end
     end
     if v != nil
-        {:result => v}.to_json
+        {:result => v, :time => time_taken}.to_json
     else
-        {:result => ''}.to_json
+        {:result => '', :time => time_taken}.to_json
     end
 end

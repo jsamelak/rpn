@@ -43,7 +43,7 @@ func parseRPN(expression string) string {
 		}
 	}
 	if len(stack) > 0 {
-		return strconv.FormatFloat(stack[len(stack)-1], 'f', 3, 64)
+		return strconv.FormatFloat(stack[len(stack)-1], 'g', 3, 64)
 	}
 	return "Error: Unknown error"
 }

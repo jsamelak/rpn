@@ -16,4 +16,4 @@ for n in range(N):
 
 for jobID in jobIDs:
     result = requests.get(URL + "jobID=" + jobID).json()
-    stdout.write(str(result))
+    stdout.write(str(result['result']) + ', ' + str(result['time']) + '\n')
